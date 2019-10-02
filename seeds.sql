@@ -1,7 +1,31 @@
-USE greatbay_db;
+USE bamazon_DB;
 
-INSERT INTO auctions(name, category,price)
-VALUES ("Girl Scout Cookies","food",5.99);
+INSERT INTO products (product_name, department_name, price, stock_quantity,)
+VALUES ("")
 
-INSERT INTO auctions(name, category,price)
-VALUES ("lamp","furniture",12);
+INSERT INTO products (product_name, department_name, price, stock_quantity,)
+VALUES ("")
+
+INSERT INTO products (product_name, department_name, price, stock_quantity,)
+VALUES ("")
+
+INSERT INTO products (product_name, department_name, price, stock_quantity,)
+VALUES ("")
+
+INSERT INTO products (product_name, department_name, price, stock_quantity,)
+VALUES ("")
+
+INSERT INTO products (product_name, department_name, price, stock_quantity,)
+VALUES ("")
+
+INSERT INTO products (product_name, department_name, price, stock_quantity,)
+VALUES ("")
+
+INSERT INTO products (product_name, department_name, price, stock_quantity,)
+VALUES ("")
+
+INSERT INTO products (product_name, department_name, price, stock_quantity,)
+VALUES ("")
+
+INSERT INTO products (product_name, department_name, price, stock_quantity,)
+VALUES ("")

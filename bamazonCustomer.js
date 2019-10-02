@@ -13,7 +13,7 @@ var connection = mysql.createConnection({
 
   // Your password
   password: "Praynika88!",
-  database: "greatBay_DB"
+  database: "bamazon_DB"
 });
 
 // connect to the mysql server and sql database
@@ -29,7 +29,7 @@ function start() {
     .prompt({
       name: "postOrBid",
       type: "list",
-      message: "Would you like to [POST] an auction or [BID] on an auction?",
+      message: "Would you like to [POST] a product or [BID] on a product?",
       choices: ["POST", "BID", "EXIT"]
     })
     .then(function(answer) {
