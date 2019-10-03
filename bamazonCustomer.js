@@ -1,156 +1,169 @@
+// The customer module is part of bamazon.
+// Users can view a list of products in bamazon.
+// And select to purchase products.
+
+// Required node modules.
 var mysql = require("mysql");
 var inquirer = require("inquirer");
 
-// create the connection information for the sql database
+// Connects to the database.
 var connection = mysql.createConnection({
   host: "localhost",
-
-  // Your port; if not 3306
+  
   port: 3306,
 
-  // Your username
+  // Root is default username.
   user: "root",
-
-  // Your password
+  // Password is empty string.
   password: "Praynika88!",
-  database: "bamazon_DB"
+  database: "Bamazon_db"
 });
 
-// connect to the mysql server and sql database
+
+// If connection doesn't work, throws error, else...
 connection.connect(function(err) {
   if (err) throw err;
-  // run the start function after the connection is made to prompt the user
-  start();
+
+  // Displays list of available products.
+  displayProducts();
+
 });
 
-// function which prompts the user for what action they should take
-function start() {
-  inquirer
-    .prompt({
-      name: "postOrBid",
-      type: "list",
-      message: "Would you like to [POST] a product or [BID] on a product?",
-      choices: ["POST", "BID", "EXIT"]
-    })
-    .then(function(answer) {
-      // based on their answer, either call the bid or the post functions
-      if (answer.postOrBid === "POST") {
-        postAuction();
-      }
-      else if(answer.postOrBid === "BID") {
-        bidAuction();
-      } else{
-        connection.end();
-      }
-    });
-}
+// Displays list of all available products.
+var displayProducts = function() {
+	var query = "Select * FROM products";
+	connection.query(query, function(err, res) {
 
-// function to handle posting new items up for auction
-function postAuction() {
-  // prompt for info about the item being put up for auction
-  inquirer
-    .prompt([
-      {
-        name: "item",
-        type: "input",
-        message: "What is the item you would like to submit?"
-      },
-      {
-        name: "category",
-        type: "input",
-        message: "What category would you like to place your auction in?"
-      },
-      {
-        name: "startingBid",
-        type: "input",
-        message: "What would you like your starting bid to be?",
-        validate: function(value) {
-          if (isNaN(value) === false) {
-            return true;
-          }
-          return false;
-        }
-      }
-    ])
-    .then(function(answer) {
-      // when finished prompting, insert a new item into the db with that info
-      connection.query(
-        "INSERT INTO auctions SET ?",
-        {
-          item_name: answer.item,
-          category: answer.category,
-          starting_bid: answer.startingBid || 0,
-          highest_bid: answer.startingBid || 0
-        },
-        function(err) {
-          if (err) throw err;
-          console.log("Your auction was created successfully!");
-          // re-prompt the user for if they want to bid or post
-          start();
-        }
-      );
-    });
-}
+		if (err) throw err;
 
-function bidAuction() {
-  // query the database for all items being auctioned
-  connection.query("SELECT * FROM auctions", function(err, results) {
-    if (err) throw err;
-    // once you have the items, prompt the user for which they'd like to bid on
-    inquirer
-      .prompt([
-        {
-          name: "choice",
-          type: "rawlist",
-          choices: function() {
-            var choiceArray = [];
-            for (var i = 0; i < results.length; i++) {
-              choiceArray.push(results[i].item_name);
-            }
-            return choiceArray;
-          },
-          message: "What auction would you like to place a bid in?"
-        },
-        {
-          name: "bid",
-          type: "input",
-          message: "How much would you like to bid?"
-        }
-      ])
-      .then(function(answer) {
-        // get the information of the chosen item
-        var chosenItem;
-        for (var i = 0; i < results.length; i++) {
-          if (results[i].item_name === answer.choice) {
-            chosenItem = results[i];
-          }
-        }
+		for (var i = 0; i < res.length; i++) {
+			console.log("Product ID: " + res[i].item_id + " || Product Name: " +
+						res[i].product_name + " || Price: " + res[i].price);
+		}
 
-        // determine if bid was high enough
-        if (chosenItem.highest_bid < parseInt(answer.bid)) {
-          // bid was high enough, so update db, let the user know, and start over
-          connection.query(
-            "UPDATE auctions SET ? WHERE ?",
-            [
-              {
-                highest_bid: answer.bid
-              },
-              {
-                id: chosenItem.id
-              }
-            ],
-            function(error) {
-              if (error) throw err;
-              console.log("Bid placed successfully!");
-              start();
-            }
-          );
-        }
-        else {
-          // bid wasn't high enough, so apologize and start over
-          console.log("Your bid was too low. Try again...");
-          start();
-        }
-      });
-  });
-}
+		// Requests product and number of product items user wishes to purchase.
+  		requestProduct();
+	});
+};
+
+// Requests product and number of product items user wishes to purchase.
+var requestProduct = function() {
+	inquirer.prompt([{
+		name: "productID",
+		type: "input",
+		message: "Please enter product ID for product you want.",
+		validate: function(value) {
+			if (isNaN(value) === false) {
+				return true;
+			}
+			return false;
+		}
+	}, {
+		name: "productUnits",
+		type: "input",
+		message: "How many units do you want?",
+		validate: function(value) {
+			if (isNaN(value) === false) {
+				return true;
+			}
+			return false
+		}
+	}]).then(function(answer) {
+
+		// Queries database for selected product.
+		var query = "Select stock_quantity, price, product_sales, department_name FROM products WHERE ?";
+		connection.query(query, { item_id: answer.productID}, function(err, res) {
+			
+			if (err) throw err;
+
+			var available_stock = res[0].stock_quantity;
+			var price_per_unit = res[0].price;
+			var productSales = res[0].product_sales;
+			var productDepartment = res[0].department_name;
+
+			// Checks there's enough inventory  to process user's request.
+			if (available_stock >= answer.productUnits) {
+
+				// Processes user's request passing in data to complete purchase.
+				completePurchase(available_stock, price_per_unit, productSales, productDepartment, answer.productID, answer.productUnits);
+			} else {
+
+				// Tells user there isn't enough stock left.
+				console.log("There isn't enough stock left!");
+
+				// Lets user request a new product.
+				requestProduct();
+			}
+		});
+	});
+};
+
+
+// Completes user's request to purchase product.
+var completePurchase = function(availableStock, price, productSales, productDepartment, selectedProductID, selectedProductUnits) {
+	
+	// Updates stock quantity once purchase complete.
+	var updatedStockQuantity = availableStock - selectedProductUnits;
+
+	// Calculates total price for purchase based on unit price, and number of units.
+	var totalPrice = price * selectedProductUnits;
+
+	// Updates total product sales.
+	var updatedProductSales = parseInt(productSales) + parseInt(totalPrice);
+	
+	// Updates stock quantity on the database based on user's purchase.
+	var query = "UPDATE products SET ? WHERE ?";
+	connection.query(query, [{
+		stock_quantity: updatedStockQuantity,
+		product_sales: updatedProductSales
+	}, {
+		item_id: selectedProductID
+	}], function(err, res) {
+
+		if (err) throw err;
+		// Tells user purchase is a success.
+		console.log("Yay, your purchase is complete.");
+
+		// Display the total price for that purchase.
+		console.log("You're mythical payment has been received in the amount of : " + totalPrice);
+
+		// Updates department revenue based on purchase.
+		updateDepartmentRevenue(updatedProductSales, productDepartment);
+		// Displays products so user can make a new selection.
+	});
+};
+
+// Updates total sales for department after completed purchase.
+var updateDepartmentRevenue = function(updatedProductSales, productDepartment) {
+
+	// Query database for total sales value for department.
+	var query = "Select total_sales FROM departments WHERE ?";
+	connection.query(query, { department_name: productDepartment}, function(err, res) {
+
+		if (err) throw err;
+
+		var departmentSales = res[0].total_sales;
+
+		var updatedDepartmentSales = parseInt(departmentSales) + parseInt(updatedProductSales);
+
+		// Completes update to total sales for department.
+		completeDepartmentSalesUpdate(updatedDepartmentSales, productDepartment);
+	});
+};
+
+// Completes update to total sales for department on database.
+var completeDepartmentSalesUpdate = function(updatedDepartmentSales, productDepartment) {
+
+	var query = "UPDATE departments SET ? WHERE ?";
+	connection.query(query, [{
+		total_sales: updatedDepartmentSales
+	}, {
+		department_name: productDepartment
+	}], function(err, res) {
+
+		if (err) throw err;
+
+		// Displays products so user can choose to make another purchase.
+		displayProducts();
+	});
+};
