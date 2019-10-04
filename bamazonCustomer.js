@@ -1,169 +1,195 @@
-// The customer module is part of bamazon.
-// Users can view a list of products in bamazon.
-// And select to purchase products.
+//=================================Setup Required Variables===============================
 
-// Required node modules.
-var mysql = require("mysql");
-var inquirer = require("inquirer");
+var Table = require('cli-table');
+var mysql = require('mysql');
+var inquirer = require('inquirer');
 
-// Connects to the database.
+//=================================Connect to SQL database===============================
+
 var connection = mysql.createConnection({
-  host: "localhost",
-  
-  port: 3306,
+    host: "localhost",
+    port: 3306,
 
-  // Root is default username.
-  user: "root",
-  // Password is empty string.
-  password: "Praynika88!",
-  database: "Bamazon_db"
+    // Your username
+    user: "root",
+
+    // Your password
+    password: "Praynika88!",
+    database: "bamazon_DB"
 });
 
-
-// If connection doesn't work, throws error, else...
 connection.connect(function(err) {
-  if (err) throw err;
-
-  // Displays list of available products.
-  displayProducts();
-
+    if (err) throw err;
+    console.log("connected as id " + connection.threadId);
+    startPrompt();
 });
 
-// Displays list of all available products.
-var displayProducts = function() {
-	var query = "Select * FROM products";
-	connection.query(query, function(err, res) {
+//=================================Inquirer introduction===============================
 
-		if (err) throw err;
+function startPrompt() {
 
-		for (var i = 0; i < res.length; i++) {
-			console.log("Product ID: " + res[i].item_id + " || Product Name: " +
-						res[i].product_name + " || Price: " + res[i].price);
-		}
+    inquirer.prompt([{
 
-		// Requests product and number of product items user wishes to purchase.
-  		requestProduct();
-	});
-};
+        type: "confirm",
+        name: "confirm",
+        message: "Welcome to Bamazon! Would you like to view our inventory?",
+        default: true
 
-// Requests product and number of product items user wishes to purchase.
-var requestProduct = function() {
-	inquirer.prompt([{
-		name: "productID",
-		type: "input",
-		message: "Please enter product ID for product you want.",
-		validate: function(value) {
-			if (isNaN(value) === false) {
-				return true;
-			}
-			return false;
-		}
-	}, {
-		name: "productUnits",
-		type: "input",
-		message: "How many units do you want?",
-		validate: function(value) {
-			if (isNaN(value) === false) {
-				return true;
-			}
-			return false
-		}
-	}]).then(function(answer) {
+    }]).then(function(user) {
+        if (user.confirm === true) {
+            inventory();
+        } else {
+            console.log("Thank you! Come back soon!");
+        }
+    });
+}
 
-		// Queries database for selected product.
-		var query = "Select stock_quantity, price, product_sales, department_name FROM products WHERE ?";
-		connection.query(query, { item_id: answer.productID}, function(err, res) {
-			
-			if (err) throw err;
+//=================================Inventory===============================
 
-			var available_stock = res[0].stock_quantity;
-			var price_per_unit = res[0].price;
-			var productSales = res[0].product_sales;
-			var productDepartment = res[0].department_name;
+function inventory() {
 
-			// Checks there's enough inventory  to process user's request.
-			if (available_stock >= answer.productUnits) {
+    // instantiate
+    var table = new Table({
+        head: ['ID', 'Item', 'Department', 'Price', 'Stock'],
+        colWidths: [10, 30, 30, 30, 30]
+    });
 
-				// Processes user's request passing in data to complete purchase.
-				completePurchase(available_stock, price_per_unit, productSales, productDepartment, answer.productID, answer.productUnits);
-			} else {
+    listInventory();
 
-				// Tells user there isn't enough stock left.
-				console.log("There isn't enough stock left!");
+    // table is an Array, so you can `push`, `unshift`, `splice` and friends
+    function listInventory() {
 
-				// Lets user request a new product.
-				requestProduct();
-			}
-		});
-	});
-};
+        //Variable creation from DB connection
 
+        connection.query("SELECT * FROM products", function(err, res) {
+            for (var i = 0; i < res.length; i++) {
 
-// Completes user's request to purchase product.
-var completePurchase = function(availableStock, price, productSales, productDepartment, selectedProductID, selectedProductUnits) {
-	
-	// Updates stock quantity once purchase complete.
-	var updatedStockQuantity = availableStock - selectedProductUnits;
+                var itemId = res[i].item_id,
+                    productName = res[i].product_name,
+                    departmentName = res[i].department_name,
+                    price = res[i].price,
+                    stockQuantity = res[i].stock_quantity;
 
-	// Calculates total price for purchase based on unit price, and number of units.
-	var totalPrice = price * selectedProductUnits;
+              table.push(
+                  [itemId, productName, departmentName, price, stockQuantity]
+            );
+          }
+            console.log("");
+            console.log("====================================================== Current Bamazon Inventory ======================================================");
+            console.log("");
+            console.log(table.toString());
+            console.log("");
+            continuePrompt();
+        });
+    }
+}
 
-	// Updates total product sales.
-	var updatedProductSales = parseInt(productSales) + parseInt(totalPrice);
-	
-	// Updates stock quantity on the database based on user's purchase.
-	var query = "UPDATE products SET ? WHERE ?";
-	connection.query(query, [{
-		stock_quantity: updatedStockQuantity,
-		product_sales: updatedProductSales
-	}, {
-		item_id: selectedProductID
-	}], function(err, res) {
+//=================================Inquirer user purchase===============================
 
-		if (err) throw err;
-		// Tells user purchase is a success.
-		console.log("Yay, your purchase is complete.");
+function continuePrompt() {
 
-		// Display the total price for that purchase.
-		console.log("You're mythical payment has been received in the amount of : " + totalPrice);
+    inquirer.prompt([{
 
-		// Updates department revenue based on purchase.
-		updateDepartmentRevenue(updatedProductSales, productDepartment);
-		// Displays products so user can make a new selection.
-	});
-};
+        type: "confirm",
+        name: "continue",
+        message: "Would you like to purchase an item?",
+        default: true
 
-// Updates total sales for department after completed purchase.
-var updateDepartmentRevenue = function(updatedProductSales, productDepartment) {
+    }]).then(function(user) {
+        if (user.continue === true) {
+            selectionPrompt();
+        } else {
+            console.log("Thank you! Come back soon!");
+        }
+    });
+}
 
-	// Query database for total sales value for department.
-	var query = "Select total_sales FROM departments WHERE ?";
-	connection.query(query, { department_name: productDepartment}, function(err, res) {
+//=================================Item selection and Quantity desired===============================
 
-		if (err) throw err;
+function selectionPrompt() {
 
-		var departmentSales = res[0].total_sales;
+    inquirer.prompt([{
 
-		var updatedDepartmentSales = parseInt(departmentSales) + parseInt(updatedProductSales);
+            type: "input",
+            name: "inputId",
+            message: "Please enter the ID number of the item you would like to purchase.",
+        },
+        {
+            type: "input",
+            name: "inputNumber",
+            message: "How many units of this item would you like to purchase?",
 
-		// Completes update to total sales for department.
-		completeDepartmentSalesUpdate(updatedDepartmentSales, productDepartment);
-	});
-};
+        }
+    ]).then(function(userPurchase) {
 
-// Completes update to total sales for department on database.
-var completeDepartmentSalesUpdate = function(updatedDepartmentSales, productDepartment) {
+        //connect to database to find stock_quantity in database. If user quantity input is greater than stock, decline purchase.
 
-	var query = "UPDATE departments SET ? WHERE ?";
-	connection.query(query, [{
-		total_sales: updatedDepartmentSales
-	}, {
-		department_name: productDepartment
-	}], function(err, res) {
+        connection.query("SELECT * FROM products WHERE item_id=?", userPurchase.inputId, function(err, res) {
+            for (var i = 0; i < res.length; i++) {
 
-		if (err) throw err;
+                if (userPurchase.inputNumber > res[i].stock_quantity) {
 
-		// Displays products so user can choose to make another purchase.
-		displayProducts();
-	});
-};
+                    console.log("===================================================");
+                    console.log("Sorry! Not enough in stock. Please try again later.");
+                    console.log("===================================================");
+                    startPrompt();
+
+                } else {
+                    //list item information for user for confirm prompt
+                    console.log("===================================");
+                    console.log("Awesome! We can fulfull your order.");
+                    console.log("===================================");
+                    console.log("You've selected:");
+                    console.log("----------------");
+                    console.log("Item: " + res[i].product_name);
+                    console.log("Department: " + res[i].department_name);
+                    console.log("Price: " + res[i].price);
+                    console.log("Quantity: " + userPurchase.inputNumber);
+                    console.log("----------------");
+                    console.log("Total: " + res[i].price * userPurchase.inputNumber);
+                    console.log("===================================");
+
+                    var newStock = (res[i].stock_quantity - userPurchase.inputNumber);
+                    var purchaseId = (userPurchase.inputId);
+                    //console.log(newStock);
+                    confirmPrompt(newStock, purchaseId);
+                }
+            }
+        });
+    });
+}
+
+//=================================Confirm Purchase===============================
+
+function confirmPrompt(newStock, purchaseId) {
+
+    inquirer.prompt([{
+
+        type: "confirm",
+        name: "confirmPurchase",
+        message: "Are you sure you would like to purchase this item and quantity?",
+        default: true
+
+    }]).then(function(userConfirm) {
+        if (userConfirm.confirmPurchase === true) {
+
+            //if user confirms purchase, update mysql database with new stock quantity by subtracting user quantity purchased.
+
+            connection.query("UPDATE products SET ? WHERE ?", [{
+                stock_quantity: newStock
+            }, {
+                item_id: purchaseId
+            }], function(err, res) {});
+
+            console.log("=================================");
+            console.log("Transaction completed. Thank you.");
+            console.log("=================================");
+            startPrompt();
+        } else {
+            console.log("=================================");
+            console.log("No worries. Maybe next time!");
+            console.log("=================================");
+            startPrompt();
+        }
+    });
+}

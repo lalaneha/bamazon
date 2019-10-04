@@ -1,223 +1,195 @@
-// The manager module is part of bamazon.
-// Managers can view products for sale.
-// They can view low inventory.
-// They can add to inventory.
-// Managers can also add new products.
+//=================================Setup Required Variables===============================
 
-// Required node modules.
-var mysql = require("mysql");
-var inquirer = require("inquirer");
+var Table = require('cli-table');
+var mysql = require('mysql');
+var inquirer = require('inquirer');
 
-// Connects to the database.
+//=================================Connect to SQL database===============================
+
 var connection = mysql.createConnection({
-  host: "localhost",
-  port: 3306,
-  // Root is default username.
-  user: "root",
-  // Password is empty string.
-  password: "",
-  database: "Bamazon_db"
+    host: "localhost",
+    port: 3306,
+
+    // Your username
+    user: "root",
+
+    // Your password
+    password: "Praynika88!",
+    database: "bamazon_DB"
 });
 
-// If connection doesn't work, throws error, else...
 connection.connect(function(err) {
-  if (err) throw err;
-
-  // Lets manager pick action.
-  selectAction();
-
+    if (err) throw err;
+    console.log("connected as id " + connection.threadId);
+    startPrompt();
 });
 
-// Manager picks action they wish to complete.
-var selectAction = function() {
-	inquirer.prompt([
-	{
-		type: 'list',
-		name: 'action',
-		message: 'What would you like to do?',
-		choices: [
-			"View Products for Sale",
-			"View Low Inventory",
-			"Add to Inventory",
-			"Add New Product"
-		]
-	}
-	]).then(function(answer) {
+//=================================Inquirer introduction===============================
 
-		// Different functions called based on managers selection
-		switch (answer.action) {
-		    case "View Products for Sale":
-		    	viewProducts();
-		      	break;
+function startPrompt() {
 
-		    case "View Low Inventory":
-		    	viewLowInventory();
-		      	break;
+    inquirer.prompt([{
 
-		    case "Add to Inventory":
-		    	addInventory();
-		      	break;
+        type: "confirm",
+        name: "confirm",
+        message: "Welcome to Bamazon! Would you like to view our inventory?",
+        default: true
 
-		    case "Add New Product":
-		    	addProduct();
-		      	break;
-		}
-	});
-};
+    }]).then(function(user) {
+        if (user.confirm === true) {
+            inventory();
+        } else {
+            console.log("Thank you! Come back soon!");
+        }
+    });
+}
 
-// Displays list of all available products.
-var viewProducts = function() {
-	var query = "Select * FROM products";
-	connection.query(query, function(err, res) {
-		if (err) throw err;
-		for (var i = 0; i < res.length; i++) {
-			console.log("Product ID: " + res[i].item_id + " || Product Name: " + res[i].product_name + " || Price: " + res[i].price + " || Quantity: " + res[i].stock_quantity);
-		}
+//=================================Inventory===============================
 
-		// Lets manager select new action.
-		selectAction();
-	});
-};
+function inventory() {
 
-// Displays products with low inventory.
-var viewLowInventory = function() {
-	var query = "SELECT item_id, product_name, stock_quantity FROM products WHERE stock_quantity < 5";
-	connection.query(query, function(err, res) {
-		if (err) throw err;
-		for (var i = 0; i < res.length; i++) {
-			console.log("Product ID: " + res[i].item_id + " || Product Name: " + res[i].product_name + " || Quantity: " + res[i].stock_quantity);
-		}
+    // instantiate
+    var table = new Table({
+        head: ['ID', 'Item', 'Department', 'Price', 'Stock'],
+        colWidths: [10, 30, 30, 30, 30]
+    });
 
-		// Lets manager select new action.
-		selectAction();
-	});
-};
+    listInventory();
 
-// Adds new stock to selected product.
-var addInventory = function() {
+    // table is an Array, so you can `push`, `unshift`, `splice` and friends
+    function listInventory() {
 
-	inquirer.prompt([
-		{
-			name: "product_ID",
-			type: "input",
-			message: "Enter product ID that you would like to add stock to."
-		},
-		{
-			name: "stock",
-			type: "input",
-			message: "How much stock would you like to add?"
-		}
-	]).then(function(answer) {
+        //Variable creation from DB connection
 
-		// Pushes new stock to database.
-		connection.query("SELECT * FROM products", function(err, results) {
-			
-			var chosenItem;
+        connection.query("SELECT * FROM products", function(err, res) {
+            for (var i = 0; i < res.length; i++) {
 
-			// Gets product who's stock needs to be updated.
-			for (var i = 0; i < results.length; i++) {
-				if (results[i].item_id === parseInt(answer.product_ID)) {
-					chosenItem = results[i];
-				}
-			}
+                var itemId = res[i].item_id,
+                    productName = res[i].product_name,
+                    departmentName = res[i].department_name,
+                    price = res[i].price,
+                    stockQuantity = res[i].stock_quantity;
 
-			// Adds new stock  to existing stock.
-			var updatedStock = parseInt(chosenItem.stock_quantity) + parseInt(answer.stock);
+              table.push(
+                  [itemId, productName, departmentName, price, stockQuantity]
+            );
+          }
+            console.log("");
+            console.log("====================================================== Current Bamazon Inventory ======================================================");
+            console.log("");
+            console.log(table.toString());
+            console.log("");
+            continuePrompt();
+        });
+    }
+}
 
-			console.log("Updated stock: " + updatedStock);
+//=================================Inquirer user purchase===============================
 
-			// Updates stock for selected product in database.
-			connection.query("UPDATE products SET ? WHERE ?", [{
-				stock_quantity: updatedStock
-			}, {
-				item_id: answer.product_ID
-			}], function (err, res) {
-				if (err) {
-					throw err;
-				} else {
+function continuePrompt() {
 
-					// Lets manager select new action.
-					selectAction();
-				}
-			});
-			
-		});
+    inquirer.prompt([{
 
-	});
-};
+        type: "confirm",
+        name: "continue",
+        message: "Would you like to purchase an item?",
+        default: true
 
-// Adds new product to database.
-var addProduct = function() {
-	inquirer.prompt([{
-		name: "product_name",
-		type: "input",
-		message: "What is the product you would like to add?"
-	}, {
-		name: "department_name",
-		type: "input",
-		message: "What is the department for this product?"
-	}, {
-		name: "price",
-		type: "input",
-		message: "What is the price for the product, e.g. 25.00?"
-	}, {
-		name: "stock_quantity",
-		type: "input",
-		message: "How much stock do you have to start with?"
-	}]).then(function(answer) {
-		connection.query("INSERT INTO products SET ?", {
-			product_name: answer.product_name,
-			department_name: answer.department_name,
-			price: answer.price,
-			stock_quantity: answer.stock_quantity
-		}, function(err, res) {
-			if (err) {
-				throw err;
-			} else {
-				console.log("Your product was added successfully!");
+    }]).then(function(user) {
+        if (user.continue === true) {
+            selectionPrompt();
+        } else {
+            console.log("Thank you! Come back soon!");
+        }
+    });
+}
 
-				// Checks if department exists.
-				checkIfDepartmentExists(answer.department_name);
-			}
-		});
-	});
-};
+//=================================Item selection and Quantity desired===============================
 
-// Checks if department exists.
-var checkIfDepartmentExists = function(departmentName) {
+function selectionPrompt() {
 
-	var query = "Select department_name FROM departments";
-	connection.query(query, function(err, res) {
-		if (err) throw err;
+    inquirer.prompt([{
 
-		// If deparment already exists, no need to add it.
-		for (var i = 0; i < res.length; i++) {
-			if (departmentName === res[i].department_name) {
-				console.log("This department already exists so no need to add it: " + departmentName);
-				selectAction();
-			}
-		}
+            type: "input",
+            name: "inputId",
+            message: "Please enter the ID number of the item you would like to purchase.",
+        },
+        {
+            type: "input",
+            name: "inputNumber",
+            message: "How many units of this item would you like to purchase?",
 
-		// If department doesn't exist, adds new department. 
-		addNewDepartment(departmentName);
-	});
-};
+        }
+    ]).then(function(userPurchase) {
 
+        //connect to database to find stock_quantity in database. If user quantity input is greater than stock, decline purchase.
 
-// Adds new department.
-// Nice feature to let both managers and supervisors add departments.
-var addNewDepartment = function(departmentName) {
-	console.log('We will add this new department: ' + departmentName);
+        connection.query("SELECT * FROM products WHERE item_id=?", userPurchase.inputId, function(err, res) {
+            for (var i = 0; i < res.length; i++) {
 
-	// Adds department to departments table in database.
-	connection.query("INSERT INTO departments SET ?", {
-			department_name: departmentName
-		}, function(err, res) {
-			if (err) {
-				throw err;
-			} else {
-				console.log("New department was added successfully!");
-				selectAction();
-			}
-		});
-};
+                if (userPurchase.inputNumber > res[i].stock_quantity) {
+
+                    console.log("===================================================");
+                    console.log("Sorry! Not enough in stock. Please try again later.");
+                    console.log("===================================================");
+                    startPrompt();
+
+                } else {
+                    //list item information for user for confirm prompt
+                    console.log("===================================");
+                    console.log("Awesome! We can fulfull your order.");
+                    console.log("===================================");
+                    console.log("You've selected:");
+                    console.log("----------------");
+                    console.log("Item: " + res[i].product_name);
+                    console.log("Department: " + res[i].department_name);
+                    console.log("Price: " + res[i].price);
+                    console.log("Quantity: " + userPurchase.inputNumber);
+                    console.log("----------------");
+                    console.log("Total: " + res[i].price * userPurchase.inputNumber);
+                    console.log("===================================");
+
+                    var newStock = (res[i].stock_quantity - userPurchase.inputNumber);
+                    var purchaseId = (userPurchase.inputId);
+                    //console.log(newStock);
+                    confirmPrompt(newStock, purchaseId);
+                }
+            }
+        });
+    });
+}
+
+//=================================Confirm Purchase===============================
+
+function confirmPrompt(newStock, purchaseId) {
+
+    inquirer.prompt([{
+
+        type: "confirm",
+        name: "confirmPurchase",
+        message: "Are you sure you would like to purchase this item and quantity?",
+        default: true
+
+    }]).then(function(userConfirm) {
+        if (userConfirm.confirmPurchase === true) {
+
+            //if user confirms purchase, update mysql database with new stock quantity by subtracting user quantity purchased.
+
+            connection.query("UPDATE products SET ? WHERE ?", [{
+                stock_quantity: newStock
+            }, {
+                item_id: purchaseId
+            }], function(err, res) {});
+
+            console.log("=================================");
+            console.log("Transaction completed. Thank you.");
+            console.log("=================================");
+            startPrompt();
+        } else {
+            console.log("=================================");
+            console.log("No worries. Maybe next time!");
+            console.log("=================================");
+            startPrompt();
+        }
+    });
+}
