@@ -12,6 +12,7 @@ When you select that you would like to purchase an item and the quanity, the dat
 
 # How to use this app:
 
+Clone the repo onto your pc.
 Open the bamazonCustomer.js file in terminal.
 Answer the questions that you are prompted to answer within the terminal.
 
